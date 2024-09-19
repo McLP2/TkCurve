@@ -1,10 +1,12 @@
 import tkinter as tk
 
+
 class CurveWidget(tk.Canvas):
     """
     Curve line widget for tkinter
     Author: Akascape
     """
+
     def __init__(self,
                  parent,
                  points=[],
@@ -20,6 +22,7 @@ class CurveWidget(tk.Canvas):
                  smooth=True,
                  function=True,
                  allow_swapping=True,
+                 curve_function=None,
                  **kwargs):
 
         super().__init__(parent, width=width, height=height, bg=bg, borderwidth=0, highlightthickness=0, **kwargs)
@@ -31,17 +34,25 @@ class CurveWidget(tk.Canvas):
         self.point_color = point_color
         self.outline_color = outline
         self.grid_color = grid_color
-        self.smooth = smooth
+        self.smooth = smooth if curve_function is None else False
         self.function = function
-        
         self.allow_swapping = allow_swapping
+        # the curve evaluation function must take in list of control points.
+        # the output must be a list of points on the curve or, iff the parameter 'at' is given
+        # the value of the curve at either x (if the curve is a function) or t (if the curve is not a function)
+        # it may use the curve evaluation cache for performance, but it has to handle updates on its own.
+        self.curve_evaluation_function = curve_function
+        self.curve_evaluation_cache = dict()  # may be used by the evaluation function
+
         self.points = points
         self.point_ids = []
         self.create_grid()
+        self.create_points()
+        self.sort_points_if_required()
         self.create_curve()
+        self.raise_points()
         self.bind_events()
 
-        self.sort_points_if_required()
 
     def create_grid(self):
         for i in range(0, self.winfo_screenwidth(), 30):
@@ -50,21 +61,27 @@ class CurveWidget(tk.Canvas):
             self.create_line([(0, i), (self.winfo_screenwidth(), i)], tag='grid_line', fill=self.grid_color)
 
     def create_curve(self):
-        if self.points==[]:
-            self.points.append((0,0))
-       
-        if len(self.points)==1:
-            self.points.append(self.points[0])
-        
-        self.create_line(self.points, tag='curve', fill=self.line_color, smooth=self.smooth, width=self.line_width,
-                         capstyle=tk.ROUND, joinstyle=tk.BEVEL)
+        if self.points == []:
+            self.points.append((0, 0))
 
+        if len(self.points) == 1:
+            self.points.append(self.points[0])
+
+        self.create_line(self.get_curve_points(), tag='curve', fill=self.line_color, smooth=self.smooth,
+                         width=self.line_width, capstyle=tk.ROUND, joinstyle=tk.BEVEL)
+
+
+    def create_points(self):
         for point in self.points:
-            point_id = self.create_oval(point[0]-self.point_size, point[1]-self.point_size,
-                                        point[0]+self.point_size, point[1]+self.point_size,
+            point_id = self.create_oval(point[0] - self.point_size, point[1] - self.point_size,
+                                        point[0] + self.point_size, point[1] + self.point_size,
                                         fill=self.point_color, outline=self.outline_color, tags='point')
             self.point_ids.append(point_id)
-            
+
+    def evaluate(self, x):
+        normalized_points = [(x / self.width, y / self.height) for x, y in self.points]
+        return self.curve_evaluation_function(normalized_points, self.curve_evaluation_cache, at=x)
+
     def bind_events(self):
         for point_id in self.point_ids:
             self.tag_bind(point_id, '<ButtonPress-1>', self.on_point_press)
@@ -82,8 +99,8 @@ class CurveWidget(tk.Canvas):
     def constrain_to_bounds(self, index, new_pos):
         dx = 0
         dy = 0
-        top_boundary = self.winfo_height()
-        right_boundary = self.winfo_width()
+        top_boundary = self.height
+        right_boundary = self.width
         bottom_boundary = 0
         left_boundary = 0
         if self.function and not self.allow_swapping:
@@ -121,7 +138,7 @@ class CurveWidget(tk.Canvas):
             self.coords('curve', self.points[0][0], self.points[0][1],
                         self.points[0][0], self.points[0][1])
         else:
-            self.coords('curve', sum(self.points, ()))
+            self.coords('curve', sum(self.get_curve_points(), ()))
 
     def fix(self, point):
         if point in self.points:
@@ -133,32 +150,32 @@ class CurveWidget(tk.Canvas):
 
     def get(self):
         return self.points
-    
+
     def add_point(self, point):
         if point in self.points:
             return
         self.points.append(point)
         self.sort_points_if_required()
-        point_id = self.create_oval(point[0]-self.point_size, point[1]-self.point_size,
-                                        point[0]+self.point_size, point[1]+self.point_size,
-                                        fill=self.point_color, outline=self.outline_color, tags='point')
+        point_id = self.create_oval(point[0] - self.point_size, point[1] - self.point_size,
+                                    point[0] + self.point_size, point[1] + self.point_size,
+                                    fill=self.point_color, outline=self.outline_color, tags='point')
         self.point_ids.append(point_id)
         self.tag_bind(point_id, '<ButtonPress-1>', self.on_point_press)
         self.tag_bind(point_id, '<ButtonRelease-1>', self.on_point_release)
         self.tag_bind(point_id, '<B1-Motion>', self.on_point_move)
         self.update_curve()
-        
+
     def delete_point(self, point):
         if point not in self.points:
             return
-    
+
         point_id = self.point_ids[self.points.index(point)]
         self.points.remove(point)
         self.delete(point_id)
-        if len(self.points)<=0:
+        if len(self.points) <= 0:
             return
         self.update_curve()
-       
+
     def config(self, **kwargs):
         if "point_color" in kwargs:
             self.point_color = kwargs.pop("point_color")
@@ -181,41 +198,37 @@ class CurveWidget(tk.Canvas):
             for i in self.point_ids:
                 self.delete(i)
             self.point_ids = []
-            
-            for point in self.points:
-                point_id = self.create_oval(point[0]-self.point_size, point[1]-self.point_size,
-                                        point[0]+self.point_size, point[1]+self.point_size,
-                                        fill=self.point_color, outline=self.outline_color, tags='point')
-                self.point_ids.append(point_id)
+
+            self.create_points()
             self.bind_events()
-            
+
         for point_id in self.point_ids:
             self.itemconfig(point_id, fill=self.point_color, outline=self.outline_color)
             point = self.points[self.point_ids.index(point_id)]
-            self.coords(point_id, point[0]-self.point_size, point[1]-self.point_size,
-                        point[0]+self.point_size, point[1]+self.point_size)
-            
+            self.coords(point_id, point[0] - self.point_size, point[1] - self.point_size,
+                        point[0] + self.point_size, point[1] + self.point_size)
+
         self.itemconfig('curve', fill=self.line_color, smooth=self.smooth, width=self.line_width)
         self.update_curve()
-        
+
         super().config(**kwargs)
 
     def cget(self, param):
-        if param=="point_color":
+        if param == "point_color":
             return self.point_color
-        if param=="outline":
+        if param == "outline":
             return self.outline_color
-        if param=="line_color":
+        if param == "line_color":
             return self.line_color
-        if param=="grid_color":
+        if param == "grid_color":
             return self.grid_color
-        if param=="smooth":
+        if param == "smooth":
             return self.smooth
-        if param=="point_size":
+        if param == "point_size":
             return self.point_size
-        if param=="line_width":
+        if param == "line_width":
             return self.line_width
-        if param=="points":
+        if param == "points":
             return self.points
         return super().cget(param)
 
@@ -224,3 +237,16 @@ class CurveWidget(tk.Canvas):
             self.points, self.point_ids = map(list, zip(*sorted(zip(self.points, self.point_ids),
                                                                 key=lambda point: point[0][0])))
 
+    def get_curve_points(self):
+        if self.curve_evaluation_function is not None:
+            normalized_points = [(x / self.width, y / self.height) for x, y in self.points]
+            normalized_curve = self.curve_evaluation_function(normalized_points, self.curve_evaluation_cache)
+            rescaled_points = [(x * self.width, y * self.height) for x, y in normalized_curve]
+            return rescaled_points
+        else:
+            return self.points
+
+    def raise_points(self):
+        self.tag_raise('point')
+        #for point_id in self.point_ids:
+        #    point_id.lift()
