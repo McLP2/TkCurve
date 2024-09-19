@@ -72,26 +72,22 @@ class CurveWidget(tk.Canvas):
         self.drag_data = {}
         current_id = self.find_withtag('current')[0]
         index = self.point_ids.index(current_id)
-        
-        if self.points[index][0]>self.winfo_width():
-            dx = self.winfo_width() - self.points[index][0] - 8
-            dy = 0
-            self.move(current_id, dx, dy)
-           
-        if self.points[index][1]>self.winfo_height():
-            dx = 0
-            dy = self.winfo_height() - self.points[index][1] - 8
-            self.move(current_id, dx, dy)
+        self.constrain_to_bounds(current_id, index)
 
-        if self.points[index][0]<0:
-            dx = -self.points[index][0] + 8
-            dy = 0
-            self.move(current_id, dx, dy)
-           
-        if self.points[index][1]<0:
-            dx = 0
-            dy = -self.points[index][1] + 8
-            self.move(current_id, dx, dy)
+    def constrain_to_bounds(self, current_id, index):
+        dx = 0
+        dy = 0
+        if self.points[index][0] > self.winfo_width():
+            dx = self.winfo_width() - self.points[index][0]
+        if self.points[index][1] > self.winfo_height():
+            dy = self.winfo_height() - self.points[index][1]
+        if self.points[index][0] < 0:
+            dx = -self.points[index][0]
+        if self.points[index][1] < 0:
+            dy = -self.points[index][1]
+        self.move(current_id, dx, dy)
+        self.points[index] = (self.points[index][0] + dx, self.points[index][1] + dy)
+        self.coords('curve', sum(self.points, ()))
 
     def on_point_move(self, event):
         dx = event.x - self.drag_data['x']
