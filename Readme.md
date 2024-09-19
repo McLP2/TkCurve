@@ -11,14 +11,14 @@ Download the source code, paste the `tkcurve` folder in the directory where your
 ## Usage
 ```python
 import tkinter as tk
-from tkcurve import CurveWidget
+from tkcurve import CurveWidget, pchip_interpolation
 
 root = tk.Tk()
 root.config(bg="black")
 
 values = [(300,0), (150,150), (0,300)]
 curve_widget = CurveWidget(root, values, line_color="purple",
-                           point_color="white", outline="black")
+                           point_color="white", outline="black", function=False)
 curve_widget.pack(side="left", padx=10, pady=10)
 
 values2 = [(300,0), (150,150), (0,300)]
@@ -26,7 +26,7 @@ curve_widget2 = CurveWidget(root, values2)
 curve_widget2.pack(side="left", padx=10, pady=10)
 
 values3 = [(300,0), (200,200), (75, 75), (0,300)]
-curve_widget3 = CurveWidget(root, values3, line_color="green")
+curve_widget3 = CurveWidget(root, values3, line_color="green", curve_function=pchip_interpolation)
 curve_widget3.pack(side="left", padx=10, pady=10)
 
 root.mainloop()
