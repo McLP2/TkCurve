@@ -18,6 +18,7 @@ class CurveWidget(tk.Canvas):
                  grid_color="grey20",
                  bg="grey12",
                  smooth=True,
+                 function=True,
                  **kwargs):
         
         super().__init__(parent, width=width, height=height, bg=bg, borderwidth=0, highlightthickness=0, **kwargs)
@@ -30,8 +31,10 @@ class CurveWidget(tk.Canvas):
         self.outline_color = outline
         self.grid_color = grid_color
         self.smooth = smooth
+        self.function = function
         
         self.points = points
+        self.sort_points_if_required()
         self.point_ids = []
         self.create_grid()
         self.create_curve()
@@ -72,22 +75,28 @@ class CurveWidget(tk.Canvas):
         self.drag_data = {}
         current_id = self.find_withtag('current')[0]
         index = self.point_ids.index(current_id)
-        self.constrain_to_bounds(current_id, index)
-        self.update_curve()
 
-    def constrain_to_bounds(self, current_id, index):
+    def constrain_to_bounds(self, index, new_pos):
         dx = 0
         dy = 0
-        if self.points[index][0] > self.winfo_width():
-            dx = self.winfo_width() - self.points[index][0]
-        if self.points[index][1] > self.winfo_height():
-            dy = self.winfo_height() - self.points[index][1]
-        if self.points[index][0] < 0:
-            dx = -self.points[index][0]
-        if self.points[index][1] < 0:
-            dy = -self.points[index][1]
-        self.move(current_id, dx, dy)
-        self.points[index] = (self.points[index][0] + dx, self.points[index][1] + dy)
+        top_boundary = self.winfo_height()
+        right_boundary = self.winfo_width()
+        bottom_boundary = 0
+        left_boundary = 0
+        if self.function:
+            if index > 0:
+                left_boundary = self.points[index - 1][0] + 1
+            if index < len(self.points) - 1:
+                right_boundary = self.points[index + 1][0] - 1
+        if new_pos[1] > top_boundary:
+            dy = top_boundary - new_pos[1]
+        if new_pos[0] > right_boundary:
+            dx = right_boundary - new_pos[0]
+        if new_pos[1] < bottom_boundary:
+            dy = bottom_boundary - new_pos[1]
+        if new_pos[0] < left_boundary:
+            dx = left_boundary - new_pos[0]
+        return dx, dy
 
     def on_point_move(self, event):
         dx = event.x - self.drag_data['x']
@@ -97,8 +106,10 @@ class CurveWidget(tk.Canvas):
         current_id = self.find_withtag('current')[0]
         self.move(current_id, dx, dy)
         index = self.point_ids.index(current_id)
-        self.points[index] = (self.points[index][0] + dx, self.points[index][1] + dy)
-        self.constrain_to_bounds(current_id, index)
+        new_pos = (self.points[index][0] + dx, self.points[index][1] + dy)
+        constrain_dx, constrain_dy = self.constrain_to_bounds(index, new_pos)
+        self.move(current_id, constrain_dx, constrain_dy)
+        self.points[index] = (new_pos[0] + constrain_dx, new_pos[1] + constrain_dy)
         self.update_curve()
 
     def update_curve(self):
@@ -123,6 +134,7 @@ class CurveWidget(tk.Canvas):
         if point in self.points:
             return
         self.points.append(point)
+        self.sort_points_if_required()
         point_id = self.create_oval(point[0]-self.point_size, point[1]-self.point_size,
                                         point[0]+self.point_size, point[1]+self.point_size,
                                         fill=self.point_color, outline=self.outline_color, tags='point')
@@ -161,6 +173,7 @@ class CurveWidget(tk.Canvas):
             self.line_width = kwargs.pop("line_width")
         if "points" in kwargs:
             self.points = kwargs.pop("points")
+            self.sort_points_if_required()
             for i in self.point_ids:
                 self.delete(i)
             self.point_ids = []
@@ -201,3 +214,7 @@ class CurveWidget(tk.Canvas):
         if param=="points":
             return self.points
         return super().cget(param)
+
+    def sort_points_if_required(self):
+        if self.function:
+            self.points = sorted(self.points, key=lambda point: point[0])
