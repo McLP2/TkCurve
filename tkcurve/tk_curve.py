@@ -73,6 +73,7 @@ class CurveWidget(tk.Canvas):
         current_id = self.find_withtag('current')[0]
         index = self.point_ids.index(current_id)
         self.constrain_to_bounds(current_id, index)
+        self.update_curve()
 
     def constrain_to_bounds(self, current_id, index):
         dx = 0
@@ -87,7 +88,6 @@ class CurveWidget(tk.Canvas):
             dy = -self.points[index][1]
         self.move(current_id, dx, dy)
         self.points[index] = (self.points[index][0] + dx, self.points[index][1] + dy)
-        self.coords('curve', sum(self.points, ()))
 
     def on_point_move(self, event):
         dx = event.x - self.drag_data['x']
@@ -98,12 +98,15 @@ class CurveWidget(tk.Canvas):
         self.move(current_id, dx, dy)
         index = self.point_ids.index(current_id)
         self.points[index] = (self.points[index][0] + dx, self.points[index][1] + dy)
-        if len(self.points)==1:
+        self.update_curve()
+
+    def update_curve(self):
+        if len(self.points) == 1:
             self.coords('curve', self.points[0][0], self.points[0][1],
-                        self.points[0][0],self.points[0][1])
+                        self.points[0][0], self.points[0][1])
         else:
             self.coords('curve', sum(self.points, ()))
-            
+
     def fix(self, point):
         if point in self.points:
             index = self.points.index(point)
@@ -126,7 +129,7 @@ class CurveWidget(tk.Canvas):
         self.tag_bind(point_id, '<ButtonPress-1>', self.on_point_press)
         self.tag_bind(point_id, '<ButtonRelease-1>', self.on_point_release)
         self.tag_bind(point_id, '<B1-Motion>', self.on_point_move)
-        self.coords('curve', sum(self.points, ()))
+        self.update_curve()
         
     def delete_point(self, point):
         if point not in self.points:
@@ -137,11 +140,7 @@ class CurveWidget(tk.Canvas):
         self.delete(point_id)
         if len(self.points)<=0:
             return
-        if len(self.points)==1:
-            self.coords('curve', self.points[0][0], self.points[0][1],
-                        self.points[0][0],self.points[0][1])
-        else:
-            self.coords('curve', sum(self.points, ()))
+        self.update_curve()
        
     def config(self, **kwargs):
         if "point_color" in kwargs:
@@ -179,7 +178,7 @@ class CurveWidget(tk.Canvas):
                         point[0]+self.point_size, point[1]+self.point_size)
             
         self.itemconfig('curve', fill=self.line_color, smooth=self.smooth, width=self.line_width)
-        self.coords('curve', sum(self.points, ()))
+        self.update_curve()
         
         super().config(**kwargs)
 
