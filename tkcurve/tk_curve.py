@@ -28,6 +28,7 @@ class CurveWidget(tk.Canvas):
         super().__init__(parent, width=width, height=height, bg=bg, borderwidth=0, highlightthickness=0, **kwargs)
         self.width = width
         self.height = height
+        self.bg = bg
         self.line_color = line_color
         self.point_size = point_size
         self.line_width = line_width
@@ -55,6 +56,7 @@ class CurveWidget(tk.Canvas):
 
 
     def create_grid(self):
+        self.create_rectangle(0, 0, self.width, self.height, tag='background', fill=self.bg)
         for i in range(0, self.winfo_screenwidth(), 30):
             self.create_line([(i, 0), (i, self.winfo_screenheight())], tag='grid_line', fill=self.grid_color)
         for i in range(0, self.winfo_screenheight(), 30):
@@ -79,22 +81,36 @@ class CurveWidget(tk.Canvas):
             self.point_ids.append(point_id)
 
     def evaluate(self, x):
-        normalized_points = [(x / self.width, y / self.height) for x, y in self.points]
-        return self.curve_evaluation_function(normalized_points, self.curve_evaluation_cache, at=x)
+        if self.curve_evaluation_function is not None:
+            normalized_points = [(x / self.width, y / self.height) for x, y in self.points]
+            return self.curve_evaluation_function(normalized_points, self.curve_evaluation_cache, at=x)
 
     def bind_events(self):
+        self.tag_bind(self.find_withtag('background')[0], '<ButtonPress-1>', self.create_point_event)
+        for grid_line in self.find_withtag('grid_line'):
+            self.tag_bind(grid_line, '<ButtonPress-1>', self.create_point_event)
+        self.tag_bind(self.find_withtag('curve')[0], '<ButtonPress-1>', self.create_point_event)
         for point_id in self.point_ids:
             self.tag_bind(point_id, '<ButtonPress-1>', self.on_point_press)
             self.tag_bind(point_id, '<ButtonRelease-1>', self.on_point_release)
             self.tag_bind(point_id, '<B1-Motion>', self.on_point_move)
+            self.tag_bind(point_id, '<Button-3>', self.on_point_leftclick)
 
     def on_point_press(self, event):
         self.drag_data = {'x': event.x, 'y': event.y}
 
     def on_point_release(self, event):
         self.drag_data = {}
+
+    def on_point_leftclick(self, event):
         current_id = self.find_withtag('current')[0]
         index = self.point_ids.index(current_id)
+        self.delete_point(self.points[index])
+
+    def create_point_event(self, event):
+        self.drag_data = {'x': event.x, 'y': event.y}
+        self.add_point((event.x, event.y))
+        self.event_generate('<ButtonPress-1>', x=event.x, y=event.y)
 
     def constrain_to_bounds(self, index, new_pos):
         dx = 0
@@ -155,7 +171,6 @@ class CurveWidget(tk.Canvas):
         if point in self.points:
             return
         self.points.append(point)
-        self.sort_points_if_required()
         point_id = self.create_oval(point[0] - self.point_size, point[1] - self.point_size,
                                     point[0] + self.point_size, point[1] + self.point_size,
                                     fill=self.point_color, outline=self.outline_color, tags='point')
@@ -163,6 +178,8 @@ class CurveWidget(tk.Canvas):
         self.tag_bind(point_id, '<ButtonPress-1>', self.on_point_press)
         self.tag_bind(point_id, '<ButtonRelease-1>', self.on_point_release)
         self.tag_bind(point_id, '<B1-Motion>', self.on_point_move)
+        self.tag_bind(point_id, '<Button-3>', self.on_point_leftclick)
+        self.sort_points_if_required()
         self.update_curve()
 
     def delete_point(self, point):
@@ -171,6 +188,7 @@ class CurveWidget(tk.Canvas):
 
         point_id = self.point_ids[self.points.index(point)]
         self.points.remove(point)
+        self.point_ids.remove(point_id)
         self.delete(point_id)
         if len(self.points) <= 0:
             return
