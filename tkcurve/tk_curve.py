@@ -98,6 +98,7 @@ class CurveWidget(tk.Canvas):
         self.move(current_id, dx, dy)
         index = self.point_ids.index(current_id)
         self.points[index] = (self.points[index][0] + dx, self.points[index][1] + dy)
+        self.constrain_to_bounds(current_id, index)
         self.update_curve()
 
     def update_curve(self):
