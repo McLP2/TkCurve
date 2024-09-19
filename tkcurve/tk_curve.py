@@ -101,7 +101,7 @@ class CurveWidget(tk.Canvas):
         current_id = self.find_withtag('current')[0]
         self.move(current_id, dx, dy)
         index = self.point_ids.index(current_id)
-        self.points[index] = (event.x, event.y)
+        self.points[index] = (self.points[index][0] + dx, self.points[index][1] + dy)
         if len(self.points)==1:
             self.coords('curve', self.points[0][0], self.points[0][1],
                         self.points[0][0],self.points[0][1])
