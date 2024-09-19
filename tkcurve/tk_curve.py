@@ -19,8 +19,9 @@ class CurveWidget(tk.Canvas):
                  bg="grey12",
                  smooth=True,
                  function=True,
+                 allow_swapping=True,
                  **kwargs):
-        
+
         super().__init__(parent, width=width, height=height, bg=bg, borderwidth=0, highlightthickness=0, **kwargs)
         self.width = width
         self.height = height
@@ -33,13 +34,15 @@ class CurveWidget(tk.Canvas):
         self.smooth = smooth
         self.function = function
         
+        self.allow_swapping = allow_swapping
         self.points = points
-        self.sort_points_if_required()
         self.point_ids = []
         self.create_grid()
         self.create_curve()
         self.bind_events()
-        
+
+        self.sort_points_if_required()
+
     def create_grid(self):
         for i in range(0, self.winfo_screenwidth(), 30):
             self.create_line([(i, 0), (i, self.winfo_screenheight())], tag='grid_line', fill=self.grid_color)
@@ -83,7 +86,7 @@ class CurveWidget(tk.Canvas):
         right_boundary = self.winfo_width()
         bottom_boundary = 0
         left_boundary = 0
-        if self.function:
+        if self.function and not self.allow_swapping:
             if index > 0:
                 left_boundary = self.points[index - 1][0] + 1
             if index < len(self.points) - 1:
@@ -110,6 +113,7 @@ class CurveWidget(tk.Canvas):
         constrain_dx, constrain_dy = self.constrain_to_bounds(index, new_pos)
         self.move(current_id, constrain_dx, constrain_dy)
         self.points[index] = (new_pos[0] + constrain_dx, new_pos[1] + constrain_dy)
+        self.sort_points_if_required()
         self.update_curve()
 
     def update_curve(self):
@@ -217,4 +221,6 @@ class CurveWidget(tk.Canvas):
 
     def sort_points_if_required(self):
         if self.function:
-            self.points = sorted(self.points, key=lambda point: point[0])
+            self.points, self.point_ids = map(list, zip(*sorted(zip(self.points, self.point_ids),
+                                                                key=lambda point: point[0][0])))
+
